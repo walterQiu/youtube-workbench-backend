@@ -73,6 +73,13 @@ select = [
   "RUF",  # ruff
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*.py" = [
+  "D",
+  "E501",
+  "RUF012",
+]
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
