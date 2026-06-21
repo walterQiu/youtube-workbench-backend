@@ -40,8 +40,10 @@ def snapshot_detail(_request: Request, snapshot_id: int) -> Response:
 def snapshot_item_list(_request: Request, snapshot_id: int) -> Response:
     """Return ordered items for one video list snapshot."""
     snapshot = get_object_or_404(VideoListSnapshot, pk=snapshot_id)
-    items = VideoListSnapshotItem.objects.select_related("video").filter(
-        snapshot=snapshot,
+    items = (
+        VideoListSnapshotItem.objects.select_related("video")
+        .filter(snapshot=snapshot)
+        .order_by("position")
     )
     serializer = VideoListSnapshotItemSerializer(items, many=True)
     return Response(serializer.data)
