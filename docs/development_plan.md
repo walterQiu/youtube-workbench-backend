@@ -1,86 +1,282 @@
 # Development Plan
 
-This plan breaks the project into small backend milestones and explicit
-frontend integration checkpoints. The goal is to avoid building too much backend
-surface before the React frontend has verified the API shape and workflow.
+This plan breaks the project into small reviewable increments. Each numbered
+substep should be implemented, tested, and reviewed before moving to the next
+substep. Avoid bundling multiple substeps into one coding pass unless the user
+explicitly asks for it.
 
-## Guiding Principles
+## Review Rules
 
-- Build one usable workflow at a time.
-- Keep backend logic authoritative for data validation, planning, execution, and
-  verification.
-- Let the frontend validate API ergonomics early, especially list browsing,
-  reordering, replacement, progress display, and error recovery.
-- Prefer local single-user simplicity until the core workflow proves stable.
-- Every backend milestone should end with tests, lint checks, and a clear manual
-  verification path.
+- Implement one substep at a time.
+- Before each substep, state which files are expected to change.
+- After each substep, run the smallest useful verification commands.
+- Do not advance to the next substep until the current result is reviewable.
+- Pause backend work at frontend checkpoints and validate the API shape from the
+  React app before continuing.
 
 ## Phase 1: Backend Foundation
 
 Goal: create a clean Django backend that can start, test, lint, and expose a
 minimal API.
 
-Backend work:
+Status: mostly complete.
 
-- Install runtime packages:
-  - Django
-  - Django REST Framework
-  - django-environ
-  - django-cors-headers
-- Install test packages:
-  - pytest
-  - pytest-django
-  - pytest-cov
-- Create the Django project and first app.
+### Phase 1.1: Python Tooling
+
+Work:
+
+- Add Ruff.
+- Add pre-commit.
+- Configure commit-time Ruff checks.
+
+Review boundary:
+
+- `pyproject.toml`
+- `.pre-commit-config.yaml`
+
+### Phase 1.2: Django Dependencies
+
+Work:
+
+- Add Django.
+- Add Django REST Framework.
+- Add django-environ.
+- Add django-cors-headers.
+- Add pytest, pytest-django, and pytest-cov.
+
+Review boundary:
+
+- `pyproject.toml`
+- `uv.lock`
+
+### Phase 1.3: Django Project Skeleton
+
+Work:
+
+- Create the Django project.
+- Create the first Django app.
+- Keep generated files understandable and lint-clean.
+
+Review boundary:
+
+- `manage.py`
+- `config/`
+- `organizer/`
+
+### Phase 1.4: Local Settings
+
+Work:
+
 - Configure environment-based settings.
-- Configure SQLite for local development.
-- Configure DRF and CORS.
-- Add a health check endpoint.
-- Configure pytest.
-- Run Ruff and tests.
+- Configure `dotenv/.env`.
+- Configure SQLite.
+- Configure DRF.
+- Configure CORS.
 
-Expected result:
+Review boundary:
 
-- Backend runs locally.
-- `/api/health/` or equivalent returns a simple success response.
-- Test suite passes.
-- Pre-commit can run successfully.
+- `config/settings.py`
+- `dotenv/.env.example`
 
-Frontend checkpoint:
+### Phase 1.5: Health Endpoint
 
-- No full frontend work yet.
-- Optionally create a tiny fetch test from the frontend repo to confirm CORS and
-  base API URL assumptions.
+Work:
+
+- Add a minimal health endpoint.
+- Add a minimal API test.
+
+Review boundary:
+
+- `config/urls.py`
+- `organizer/urls.py`
+- `organizer/views.py`
+- `organizer/tests/test_health.py`
+
+### Phase 1.6: Foundation Verification
+
+Work:
+
+- Run Django system checks.
+- Run tests.
+- Run Ruff.
+- Run pre-commit.
+- Confirm the health endpoint manually if useful.
+
+Verification:
+
+- `uv run python manage.py check`
+- `uv run pytest`
+- `uv run ruff check .`
+- `uv run pre-commit run --all-files`
 
 Proceed to Phase 2 when:
 
 - Django starts cleanly.
 - Tests and lint pass.
-- The frontend can reach the health endpoint if tested.
+- The health endpoint returns `{"status": "ok"}`.
 
 ## Phase 2: Snapshot Persistence
 
 Goal: implement the first durable data model for ordered video snapshots without
 connecting to YouTube yet.
 
-Backend work:
+### Phase 2.1: Model Shape Proposal
 
-- Design and implement models for:
-  - Video
-  - Snapshot
-  - SnapshotItem
-- Preserve ordered list positions.
-- Represent available, unavailable, deleted, or unknown video states.
-- Store retrieval timestamps.
-- Add migrations.
-- Add model and service tests for saving and reading ordered snapshots.
-- Add a small seed or fixture path for local manual testing.
+Work:
 
-Expected result:
+- Propose the model fields before writing model code.
+- Decide how to represent video availability.
+- Decide how to represent snapshot kinds.
+- Decide which uniqueness constraints are needed.
+- Decide which fields can be blank or null for unavailable videos.
 
-- The backend can persist an ordered list of liked-video-like records.
-- Snapshot ordering is deterministic.
-- Unavailable entries can exist in the data model.
+Expected output:
+
+- A short written model proposal.
+- No code changes unless the user asks to record the proposal in docs.
+
+Review boundary:
+
+- User confirms the model shape.
+
+### Phase 2.2: Add Core Model Classes
+
+Work:
+
+- Add `Video`.
+- Add `Snapshot`.
+- Add `SnapshotItem`.
+- Add enum-style `TextChoices` where useful.
+- Add `Meta.ordering` and constraints.
+- Add helpful `__str__` methods.
+
+Expected files:
+
+- `organizer/models.py`
+
+Verification:
+
+- `uv run ruff check organizer/models.py`
+- `uv run python manage.py check`
+
+Review boundary:
+
+- Review model code before migrations are created.
+
+### Phase 2.3: Create Initial Organizer Migration
+
+Work:
+
+- Run `makemigrations`.
+- Inspect the generated migration.
+- Apply the migration locally.
+
+Expected files:
+
+- `organizer/migrations/0001_initial.py`
+
+Verification:
+
+- `uv run python manage.py makemigrations --check`
+- `uv run python manage.py migrate`
+
+Review boundary:
+
+- Review the migration separately from model code.
+
+### Phase 2.4: Model Factory Helpers for Tests
+
+Work:
+
+- Add small test helper functions for creating videos, snapshots, and ordered
+  snapshot items.
+- Keep helpers local to tests for now.
+- Do not add factory-boy yet unless the helpers become noisy.
+
+Expected files:
+
+- `organizer/tests/`
+
+Verification:
+
+- `uv run ruff check organizer/tests`
+- `uv run pytest`
+
+Review boundary:
+
+- Review test setup style before adding behavior tests.
+
+### Phase 2.5: Snapshot Ordering Tests
+
+Work:
+
+- Test that snapshot items are read in position order.
+- Test that unavailable videos can be persisted.
+- Test that snapshot metadata is saved.
+
+Expected files:
+
+- `organizer/tests/test_models.py`
+
+Verification:
+
+- `uv run pytest organizer/tests/test_models.py`
+- `uv run ruff check organizer/tests/test_models.py`
+
+Review boundary:
+
+- Review basic persistence behavior before adding constraint tests.
+
+### Phase 2.6: Constraint Tests
+
+Work:
+
+- Test that one snapshot cannot have duplicate positions.
+- Test that one snapshot cannot contain the same video twice unless the model
+  proposal explicitly allows it.
+- Test any source-snapshot relationship constraints if added.
+
+Expected files:
+
+- `organizer/tests/test_models.py`
+
+Verification:
+
+- `uv run pytest organizer/tests/test_models.py`
+- `uv run ruff check organizer/tests/test_models.py`
+
+Review boundary:
+
+- Review database guarantees before adding services or APIs.
+
+### Phase 2.7: Optional Seed Command or Fixture
+
+Work:
+
+- Add a tiny local-only way to create sample snapshot data if manual API/UI
+  testing needs it.
+- Prefer a management command over committing database files.
+
+Expected files:
+
+- `organizer/management/commands/`
+
+Verification:
+
+- `uv run python manage.py <command-name>`
+- `uv run pytest`
+- `uv run ruff check organizer`
+
+Review boundary:
+
+- This substep can be skipped until the read-only API exists.
+
+Proceed to Phase 3 when:
+
+- Snapshot model tests pass.
+- Ordering behavior is deterministic.
+- Unavailable entries can be represented.
+- The data shape looks usable for the frontend list UI.
 
 Frontend checkpoint:
 
@@ -90,35 +286,79 @@ Frontend checkpoint:
   - Is availability status clear enough for UI states?
   - Is ordering represented in a way that is easy to consume?
 
-Proceed to Phase 3 when:
-
-- Snapshot model tests pass.
-- The data shape looks usable for the frontend list UI.
-
 ## Phase 3: Read-Only Snapshot API
 
 Goal: expose saved snapshots through API endpoints so the frontend can render
 real backend data.
 
-Backend work:
+### Phase 3.1: API Shape Proposal
 
-- Add serializers for snapshots and snapshot items.
-- Add endpoints for:
-  - Listing snapshots
-  - Reading one snapshot
-  - Reading ordered items for one snapshot
-- Add API tests.
-- Add pagination only if the first real payloads require it.
-- Keep filters minimal until the frontend needs them.
+Work:
 
-Expected result:
+- Propose endpoint paths.
+- Propose response payloads.
+- Decide whether snapshot items are embedded or separate.
+- Decide whether pagination is needed immediately.
 
-- The frontend can fetch saved snapshots and ordered items.
-- API responses are stable enough for early UI work.
+Review boundary:
 
-Frontend checkpoint 1: read-only browser
+- User confirms API shape before serializers/views are written.
 
-At this point, pause backend feature work and switch to the frontend.
+### Phase 3.2: Serializers
+
+Work:
+
+- Add serializers for `Video`, `Snapshot`, and `SnapshotItem`.
+- Keep fields stable and frontend-friendly.
+
+Expected files:
+
+- `organizer/serializers.py`
+
+Verification:
+
+- `uv run ruff check organizer/serializers.py`
+- `uv run pytest`
+
+### Phase 3.3: Read-Only Views and URLs
+
+Work:
+
+- Add snapshot list endpoint.
+- Add snapshot detail endpoint.
+- Add ordered snapshot items endpoint if not embedded.
+
+Expected files:
+
+- `organizer/views.py`
+- `organizer/urls.py`
+
+Verification:
+
+- `uv run python manage.py check`
+- `uv run ruff check organizer`
+
+### Phase 3.4: API Tests
+
+Work:
+
+- Test snapshot list response.
+- Test snapshot detail response.
+- Test ordered items response.
+- Test empty states.
+
+Expected files:
+
+- `organizer/tests/test_snapshot_api.py`
+
+Verification:
+
+- `uv run pytest organizer/tests/test_snapshot_api.py`
+- `uv run ruff check organizer/tests/test_snapshot_api.py`
+
+### Phase 3.5: Frontend Checkpoint 1 - Read-Only Browser
+
+Pause backend feature work and switch to the frontend.
 
 Frontend work:
 
@@ -130,7 +370,7 @@ Frontend work:
   availability state.
 - Handle loading, empty, and error states.
 
-Integration questions to answer:
+Integration questions:
 
 - Are endpoint names and response shapes convenient?
 - Does the frontend need different thumbnail fields or metadata?
@@ -147,25 +387,40 @@ Proceed to Phase 4 when:
 Goal: support creating and updating a user-defined target order from an original
 snapshot.
 
-Backend work:
+### Phase 4.1: Target Order API Proposal
 
-- Add target snapshot creation from an original snapshot.
-- Add endpoint to submit a target order.
-- Validate target order input:
-  - Known snapshot source
-  - No accidental duplicate entries
-  - No missing entries unless explicitly supported
-  - Stable handling for unavailable entries
-- Add service tests and API tests.
+Work:
 
-Expected result:
+- Propose endpoint paths and request payloads.
+- Decide whether target snapshots are created explicitly or on first save.
+- Decide how to report validation errors.
 
-- A user can create a target snapshot based on an existing original snapshot.
-- The backend rejects invalid target orders with actionable errors.
+### Phase 4.2: Target Snapshot Service
 
-Frontend checkpoint 2: reorder UI
+Work:
 
-Pause backend feature work again and switch to the frontend.
+- Add service logic for creating a target snapshot from an original snapshot.
+- Keep behavior independent from HTTP.
+
+### Phase 4.3: Target Order Validation
+
+Work:
+
+- Validate known source snapshot.
+- Validate duplicate entries.
+- Validate missing entries.
+- Preserve unavailable entry handling.
+
+### Phase 4.4: Target Order API
+
+Work:
+
+- Add endpoint to create/update target order.
+- Add API tests.
+
+### Phase 4.5: Frontend Checkpoint 2 - Reorder UI
+
+Pause backend feature work and switch to the frontend.
 
 Frontend work:
 
@@ -174,14 +429,6 @@ Frontend work:
 - Submit target order to the backend.
 - Display backend validation errors.
 - Refresh and render the saved target order.
-
-Integration questions to answer:
-
-- Is the target-order payload too large or awkward?
-- Are validation errors precise enough for UI display?
-- Does the frontend need optimistic updates or draft state separate from saved
-  state?
-- Does reordering remain usable with realistic list sizes?
 
 Proceed to Phase 5 when:
 
@@ -193,21 +440,36 @@ Proceed to Phase 5 when:
 Goal: support replacing unavailable entries with user-selected videos while
 still allowing ordinary reordering.
 
-Backend work:
+### Phase 5.1: Replacement Data Proposal
 
-- Add replacement representation to the data model.
+Work:
+
+- Decide whether replacements live on `SnapshotItem`, a separate model, or both.
+- Decide whether the first version accepts pasted YouTube video IDs only.
+
+### Phase 5.2: Replacement Model Changes
+
+Work:
+
+- Add replacement persistence.
+- Add migration.
+- Add constraint tests.
+
+### Phase 5.3: Replacement Service
+
+Work:
+
+- Add replacement validation.
+- Ensure replacement entries participate in target snapshots.
+
+### Phase 5.4: Replacement API
+
+Work:
+
 - Add endpoint to register or update a replacement.
-- Validate replacement input.
-- Ensure replacement entries can participate in target snapshots.
-- Add tests for unavailable-video replacement scenarios.
+- Add API tests.
 
-Expected result:
-
-- The target order can place a replacement video where an unavailable entry used
-  to be.
-- Replacement state is explicit and recoverable.
-
-Frontend checkpoint 3: replacement flow
+### Phase 5.5: Frontend Checkpoint 3 - Replacement Flow
 
 Pause backend feature work and switch to the frontend.
 
@@ -219,13 +481,6 @@ Frontend work:
 - Render replacement relationships clearly.
 - Confirm replacement behavior still works with reordering.
 
-Integration questions to answer:
-
-- Does the replacement API support the intended user flow?
-- Does the UI need a video lookup endpoint now, or can the user paste a YouTube
-  URL/video ID first?
-- Are replacement records understandable when viewing old snapshots later?
-
 Proceed to Phase 6 when:
 
 - The frontend can handle unavailable entries and replacements end to end.
@@ -236,25 +491,45 @@ Proceed to Phase 6 when:
 Goal: compare original and target orders and persist a synchronization plan
 without touching YouTube yet.
 
-Backend work:
+### Phase 6.1: Planning Algorithm Proposal
 
-- Implement order comparison logic.
-- Identify the smallest section that must be rebuilt.
-- Add models for:
-  - ReorderPlan
-  - SyncOperation
-- Generate ordered operations.
-- Persist plan status and operation status.
-- Add algorithm unit tests with edge cases.
-- Add API endpoint to create and inspect a plan.
+Work:
 
-Expected result:
+- Define how to find the smallest section that must be rebuilt.
+- Define operation types.
+- Define edge cases.
 
-- The backend can explain what will happen before any destructive YouTube
-  operation runs.
-- The plan is stable across process restarts.
+### Phase 6.2: Plan Models
 
-Frontend checkpoint 4: plan preview
+Work:
+
+- Add `ReorderPlan`.
+- Add `SyncOperation`.
+- Add status fields and constraints.
+- Add migration.
+
+### Phase 6.3: Pure Planning Function
+
+Work:
+
+- Implement comparison logic without database writes.
+- Add unit tests for edge cases.
+
+### Phase 6.4: Plan Persistence Service
+
+Work:
+
+- Convert planning result into persisted plan and operations.
+- Add service tests.
+
+### Phase 6.5: Plan Preview API
+
+Work:
+
+- Add endpoint to create and inspect a plan.
+- Add API tests.
+
+### Phase 6.6: Frontend Checkpoint 4 - Plan Preview
 
 Pause backend feature work and switch to the frontend.
 
@@ -266,12 +541,6 @@ Frontend work:
 - Display warnings for unavailable videos, replacements, or large operation
   counts.
 
-Integration questions to answer:
-
-- Is the plan explanation understandable?
-- Does the frontend need summarized fields instead of raw operations only?
-- Is the confirmation flow clear enough before destructive actions?
-
 Proceed to Phase 7 when:
 
 - The frontend can preview a plan and ask for confirmation.
@@ -281,21 +550,37 @@ Proceed to Phase 7 when:
 
 Goal: connect the local backend to the user's Google/YouTube account securely.
 
-Backend work:
+### Phase 7.1: OAuth Configuration Proposal
 
-- Add Google OAuth configuration through environment variables.
-- Add OAuth start and callback endpoints.
-- Store credentials/tokens on the backend only.
-- Add an auth status endpoint.
-- Avoid logging secrets.
-- Add tests around state handling and local credential storage where practical.
+Work:
 
-Expected result:
+- Define required environment variables.
+- Decide where local token files or token records live.
+- Decide frontend redirect behavior.
 
-- The user can authorize the backend locally.
-- The frontend can know whether YouTube is connected without seeing tokens.
+### Phase 7.2: Google Auth Dependencies
 
-Frontend checkpoint 5: auth flow
+Work:
+
+- Add Google API/auth packages.
+- Re-enable or adjust pre-commit hooks if needed.
+
+### Phase 7.3: OAuth Start and Callback
+
+Work:
+
+- Add OAuth start endpoint.
+- Add OAuth callback endpoint.
+- Store backend-only credentials.
+
+### Phase 7.4: Auth Status API
+
+Work:
+
+- Add endpoint for connected/disconnected state.
+- Add tests around state and error handling.
+
+### Phase 7.5: Frontend Checkpoint 5 - Auth Flow
 
 Pause backend feature work and switch to the frontend.
 
@@ -305,12 +590,6 @@ Frontend work:
 - Add connect/disconnect or reconnect controls as supported by the backend.
 - Handle OAuth redirect/callback UX.
 - Display authentication errors.
-
-Integration questions to answer:
-
-- Is the redirect flow comfortable between frontend and backend origins?
-- Does the frontend need polling or a callback landing page?
-- Are auth errors actionable?
 
 Proceed to Phase 8 when:
 
@@ -322,22 +601,37 @@ Proceed to Phase 8 when:
 Goal: retrieve the real Liked Videos list from YouTube and save it as an
 original snapshot.
 
-Backend work:
+### Phase 8.1: Retrieval Contract Proposal
 
-- Implement a YouTube API client wrapper.
-- Retrieve all liked videos with pagination.
-- Preserve YouTube order.
-- Save metadata and availability status where possible.
+Work:
+
+- Define trigger endpoint behavior.
+- Define success and error responses.
+- Define how retrieval status is represented.
+
+### Phase 8.2: YouTube Client Wrapper
+
+Work:
+
+- Implement read-only YouTube API wrapper.
+- Add mocked tests.
+
+### Phase 8.3: Snapshot Import Service
+
+Work:
+
+- Convert YouTube response pages into `Video`, `Snapshot`, and `SnapshotItem`
+  records.
+- Preserve order and metadata.
+
+### Phase 8.4: Retrieval API
+
+Work:
+
 - Add endpoint to trigger retrieval.
-- Add error handling for quota, auth expiration, and API failures.
-- Add tests with mocked YouTube responses.
+- Add API tests.
 
-Expected result:
-
-- The backend can create real original snapshots from YouTube.
-- The frontend read-only snapshot UI works with real data.
-
-Frontend checkpoint 6: real snapshot import
+### Phase 8.5: Frontend Checkpoint 6 - Real Snapshot Import
 
 Pause backend feature work and switch to the frontend.
 
@@ -347,13 +641,6 @@ Frontend work:
 - Show retrieval status and errors.
 - Navigate to the created snapshot after retrieval.
 - Confirm real metadata renders correctly.
-
-Integration questions to answer:
-
-- Are real payload sizes acceptable?
-- Are thumbnails reliable?
-- Are unavailable/deleted entries represented well enough?
-- Does the frontend need background progress for long retrievals?
 
 Proceed to Phase 9 when:
 
@@ -365,23 +652,40 @@ Proceed to Phase 9 when:
 Goal: execute persisted plans against YouTube safely, with progress checkpoints
 and resumability.
 
-Backend work:
+### Phase 9.1: Execution State Proposal
 
-- Add execution service for one operation at a time.
-- Persist progress after every operation.
-- Track completed, pending, failed, and skipped operations.
-- Stop before configured operation or quota limits.
-- Add pause reasons.
-- Add resume behavior from saved state.
-- Add tests with mocked YouTube mutation calls.
+Work:
 
-Expected result:
+- Define plan statuses.
+- Define operation statuses.
+- Define pause reasons and quota stop behavior.
 
-- Execution is recoverable after app restart or failure.
-- The backend can report current progress.
-- No execution begins without explicit confirmation.
+### Phase 9.2: One-Step Execution Service
 
-Frontend checkpoint 7: execution monitor
+Work:
+
+- Execute one pending operation.
+- Persist after every operation.
+- Add mocked YouTube mutation tests.
+
+### Phase 9.3: Execution Control API
+
+Work:
+
+- Add confirm/start endpoint.
+- Add progress endpoint.
+- Add resume endpoint.
+- Add API tests.
+
+### Phase 9.4: Failure and Resume Tests
+
+Work:
+
+- Test interrupted execution.
+- Test failed operations.
+- Test quota/operation-limit stops.
+
+### Phase 9.5: Frontend Checkpoint 7 - Execution Monitor
 
 Pause backend feature work and switch to the frontend.
 
@@ -393,12 +697,6 @@ Frontend work:
 - Add resume action when backend allows it.
 - Display failure details and next available actions.
 
-Integration questions to answer:
-
-- Is polling sufficient, or is a later WebSocket/SSE feature justified?
-- Are progress fields granular enough?
-- Are failure states understandable?
-
 Proceed to Phase 10 when:
 
 - The frontend can monitor and resume execution using backend state.
@@ -408,21 +706,36 @@ Proceed to Phase 10 when:
 
 Goal: verify the final YouTube order after execution and report mismatches.
 
-Backend work:
+### Phase 10.1: Verification Contract Proposal
 
-- Retrieve final Liked Videos state after execution.
+Work:
+
+- Define mismatch report shape.
+- Define when repair planning is allowed.
+
+### Phase 10.2: Final Snapshot Retrieval
+
+Work:
+
+- Retrieve final YouTube state.
 - Save a final verification snapshot.
+
+### Phase 10.3: Snapshot Comparison Service
+
+Work:
+
 - Compare final snapshot with target snapshot.
 - Report exact mismatch positions.
-- Indicate whether another repair plan is required.
 - Add tests for match and mismatch scenarios.
 
-Expected result:
+### Phase 10.4: Verification API
 
-- The system can prove whether synchronization succeeded.
-- Mismatches are explicit and recoverable.
+Work:
 
-Frontend checkpoint 8: verification result
+- Add endpoint to run or inspect verification.
+- Add API tests.
+
+### Phase 10.5: Frontend Checkpoint 8 - Verification Result
 
 Pause backend feature work and switch to the frontend.
 
@@ -432,12 +745,6 @@ Frontend work:
 - Show success, mismatch, and repair-needed states.
 - Display mismatch positions clearly.
 - Offer repair-plan creation if supported.
-
-Integration questions to answer:
-
-- Are mismatch reports easy to understand?
-- Does the repair flow need a separate UX?
-- Does the user need exportable logs or reports?
 
 Proceed when:
 
@@ -468,8 +775,3 @@ phase proves they are necessary:
 - Automatic replacement discovery
 - Advanced search/filtering
 - OpenAPI documentation polish before endpoint shapes stabilize
-
-## Suggested Immediate Next Step
-
-Start with Phase 1. Before running package installation commands, confirm the
-exact dependencies and then install them with `uv add`.
